@@ -1,75 +1,75 @@
 import os
+from api4jenkins import Jenkins
 import logging
 import json
 from time import time, sleep
-from api4jenkins import Jenkins
 
 log_level = os.environ.get('INPUT_LOG_LEVEL', 'INFO')
 logging.basicConfig(format='JENKINS_ACTION: %(message)s', level=log_level)
 
-def fetch_env_variables():
-    return {
-        "url": os.environ["INPUT_URL"],
-        "job_name": os.environ["INPUT_JOB_NAME"],
-        "username": os.environ.get("INPUT_USERNAME"),
-        "api_token": os.environ.get("INPUT_API_TOKEN"),
-        "parameters": os.environ.get("INPUT_PARAMETERS"),
-        "cookies": os.environ.get("INPUT_COOKIES"),
-        "wait": bool(os.environ.get("INPUT_WAIT")),
-        "timeout": int(os.environ.get("INPUT_TIMEOUT")),
-        "start_timeout": int(os.environ.get("INPUT_START_TIMEOUT")),
-        "interval": int(os.environ.get("INPUT_INTERVAL"))
-    }
 
-def get_auth(username, api_token):
+def main():
+    # Required
+    url = os.environ["INPUT_URL"]
+    job_name = os.environ["INPUT_JOB_NAME"]
+
+    # Optional
+    username = os.environ.get("INPUT_USERNAME")
+    api_token = os.environ.get("INPUT_API_TOKEN")
+    parameters = os.environ.get("INPUT_PARAMETERS")
+    cookies = os.environ.get("INPUT_COOKIES")
+    wait = bool(os.environ.get("INPUT_WAIT"))
+    timeout = int(os.environ.get("INPUT_TIMEOUT"))
+    start_timeout = int(os.environ.get("INPUT_START_TIMEOUT"))
+    interval = int(os.environ.get("INPUT_INTERVAL"))
+
     if username and api_token:
-        return (username, api_token)
-    logging.info('Username or token not provided. Connecting without authentication.')
-    return None
+        auth = (username, api_token)
+    else:
+        auth = None
+        logging.info(
+            'Username or token not provided. Connecting without authentication.') # noqa
 
-def parse_json(data, name):
-    if data:
+    if parameters:
         try:
-            return json.loads(data)
+            parameters = json.loads(parameters)
         except json.JSONDecodeError as e:
-            raise Exception(f'`{name}` is not valid JSON.') from e
-    return {}
+            raise Exception('`parameters` is not valid JSON.') from e
+    else:
+        parameters = {}
 
-def connect_to_jenkins(url, auth, cookies):
+    if cookies:
+        try:
+            cookies = json.loads(cookies)
+        except json.JSONDecodeError as e:
+            raise Exception('`cookies` is not valid JSON.') from e
+    else:
+        cookies = {}
+
     jenkins = Jenkins(url, auth=auth, cookies=cookies)
+
     try:
         jenkins.version
     except Exception as e:
         raise Exception('Could not connect to Jenkins.') from e
+
     logging.info('Successfully connected to Jenkins.')
-    return jenkins
 
-def main():
-    env_vars = fetch_env_variables()
-
-    auth = get_auth(env_vars["username"], env_vars["api_token"])
-
-    parameters = parse_json(env_vars["parameters"], 'parameters')
-
-    cookies = parse_json(env_vars["cookies"], 'cookies')
-
-    jenkins = connect_to_jenkins(env_vars["url"], auth, cookies)
-
-    queue_item = jenkins.build_job(env_vars["job_name"], **parameters)
+    queue_item = jenkins.build_job(job_name, **parameters)
 
     logging.info('Requested to build job.')
 
     t0 = time()
-    sleep(env_vars["interval"])
-    while time() - t0 < env_vars["start_timeout"]:
+    sleep(interval)
+    while time() - t0 < start_timeout:
         build = queue_item.get_build()
         if build:
             break
-        logging.info(f'Build not started yet. Waiting {env_vars["interval"]} seconds.')
-        sleep(env_vars["interval"])
+        logging.info(f'Build not started yet. Waiting {interval} seconds.')
+        sleep(interval)
     else:
         raise Exception(
-            f"Could not obtain build and timed out. Waited for {env_vars["start_timeout"]} seconds.") # noqa
+            f"Could not obtain build and timed out. Waited for {start_timeout} seconds.") # noqa
 
     build_url = build.url
     logging.info(f"Build URL: {build_url}")
@@ -77,13 +77,13 @@ def main():
       print(f'build_url={build_url}', file=fh)
     print(f"::notice title=build_url::{build_url}")
 
-    if not env_vars["wait"]:
+    if not wait:
         logging.info("Not waiting for build to finish.")
         return
 
     t0 = time()
-    sleep(env_vars["interval"])
-    while time() - t0 < env_vars["timeout"]:
+    sleep(interval)
+    while time() - t0 < timeout:
         result = build.result
         if result == 'SUCCESS':
             logging.info('Build successful 🎉')
@@ -92,11 +92,11 @@ def main():
             raise Exception(
                 f'Build status returned "{result}". Build has failed ☹️.')
         logging.info(
-            f'Build not finished yet. Waiting {env_vars["interval"]} seconds. {build_url}')
-        sleep(env_vars["interval"])
+            f'Build not finished yet. Waiting {interval} seconds. {build_url}')
+        sleep(interval)
     else:
         raise Exception(
-            f"Build has not finished and timed out. Waited for {env_vars["timeout"]} seconds.") # noqa
+            f"Build has not finished and timed out. Waited for {timeout} seconds.") # noqa
 
 
 if __name__ == "__main__":
