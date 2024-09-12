@@ -10,5 +10,5 @@ RUN pip install --target=/app api4jenkins==2.0.3 requests==2.32.3
 FROM gcr.io/distroless/python3-debian12
 COPY --from=builder /app /app
 WORKDIR /app
-ENV PYTHONPATH /app
+ENV PYTHONPATH=/app
 CMD ["/app/main.py"]
