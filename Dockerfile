@@ -1,13 +1,13 @@
-FROM python:3.12.5-slim AS builder
+FROM python:3.13-slim AS builder
 ADD . /app
 WORKDIR /app
 
 # We are installing a dependency here directly into our app source dir
-RUN pip install --target=/app api4jenkins==2.0.3 requests==2.32.3
+RUN pip install --target=/app api4jenkins==2.1.0 requests==2.34.2
 
 # A distroless container image with Python and some basics like SSL certificates
 # https://github.com/GoogleContainerTools/distroless
-FROM gcr.io/distroless/python3-debian12
+FROM gcr.io/distroless/python3-debian13
 COPY --from=builder /app /app
 WORKDIR /app
 ENV PYTHONPATH=/app

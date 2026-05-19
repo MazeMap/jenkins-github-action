@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Trigger jenkins job
-        uses: mazemap/jenkins-github-action@master
+        uses: mazemap/jenkins-github-action@main
         with:
           url: https://jenkins_url
           job_name: jenkins_job_name

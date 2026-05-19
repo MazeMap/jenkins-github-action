@@ -7,6 +7,8 @@ from api4jenkins import Jenkins
 log_level = os.environ.get('INPUT_LOG_LEVEL', 'INFO')
 logging.basicConfig(format='JENKINS_ACTION: %(message)s', level=log_level)
 
+REDACTED_KEYS = {"username", "api_token"}
+
 def fetch_env_variables():
     return {
         "url": os.environ["INPUT_URL"],
@@ -15,7 +17,7 @@ def fetch_env_variables():
         "api_token": os.environ.get("INPUT_API_TOKEN"),
         "parameters": os.environ.get("INPUT_PARAMETERS"),
         "cookies": os.environ.get("INPUT_COOKIES"),
-        "wait": bool(os.environ.get("INPUT_WAIT")),
+        "wait": os.environ.get("INPUT_WAIT", "true").lower() in ("true", "1", "yes"),
         "timeout": int(os.environ.get("INPUT_TIMEOUT")),
         "start_timeout": int(os.environ.get("INPUT_START_TIMEOUT")),
         "interval": int(os.environ.get("INPUT_INTERVAL"))
@@ -47,9 +49,8 @@ def connect_to_jenkins(url, auth, cookies):
 def main():
     env_vars = fetch_env_variables()
 
-    # print all the env variables
     for key, value in env_vars.items():
-        print(f'{key}={value}')
+        print(f'{key}={"***" if key in REDACTED_KEYS else value}')
 
     auth = get_auth(env_vars["username"], env_vars["api_token"])
 
@@ -78,7 +79,7 @@ def main():
     build_url = build.url
     logging.info(f"Build URL: {build_url}")
     with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
-      print(f'build_url={build_url}', file=fh)
+        print(f'build_url={build_url}', file=fh)
     print(f"::notice title=build_url::{build_url}")
 
     if not env_vars["wait"]:
@@ -91,14 +92,20 @@ def main():
         result = build.result
         if result == 'SUCCESS':
             logging.info('Build successful 🎉')
+            with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
+                print(f'build_status={result}', file=fh)
             return
         elif result in ('FAILURE', 'ABORTED', 'UNSTABLE'):
+            with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
+                print(f'build_status={result}', file=fh)
             raise Exception(
                 f'Build status returned "{result}". Build has failed ☹️.')
         logging.info(
             f'Build not finished yet. Waiting {env_vars["interval"]} seconds. {build_url}')
         sleep(env_vars["interval"])
     else:
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
+            print('build_status=TIMED_OUT', file=fh)
         raise Exception(
             f"Build has not finished and timed out. Waited for {env_vars['timeout']} seconds.") # noqa
 

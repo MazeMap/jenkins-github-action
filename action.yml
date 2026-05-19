@@ -39,6 +39,8 @@ inputs:
 outputs:
   build_url:
     description: "Jenkins build URL"
+  build_status:
+    description: "Jenkins build status (SUCCESS, FAILURE, ABORTED, UNSTABLE, TIMED_OUT)"
 runs:
   using: "docker"
   image: "Dockerfile"
